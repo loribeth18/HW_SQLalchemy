@@ -25,8 +25,6 @@ Base.prepare(engine, reflect=True)
 Measurement = Base.classes.measurement
 Station = Base.classes.station
 
-session = Session(engine)
-
 
 # 2. Create an app, being sure to pass __name__
 app = Flask(__name__)
@@ -49,6 +47,7 @@ def home():
 # 4. Define what to do when a user hits the /about route
 @app.route("/api/v1.0/precipitation")
 def precipitation():
+   session = Session(engine)
    precipitation = session.query(Measurement.date, Measurement.prcp).\
     order_by(Measurement.date).all()
    d = {date: prcp for (date, prcp) in precipitation}
@@ -57,34 +56,40 @@ def precipitation():
 
 @app.route("/api/v1.0/stations")
 def stations():
+   session = Session(engine)
    active_stations=session.query(Station.station, Station.name).\
-    order_by(Station.station).desc().all()
+    order_by(Station.station.desc()).all()
    s = {station: name for (station, name) in active_stations}
    return jsonify(s)
 
 @app.route("/api/v1.0/tobs")
 def tobs():
-   tob = session.query(Measurement.date, Measurement.prcp).\
+   session = Session(engine)
+   tob = session.query(Measurement.date, Measurement.tobs).\
     filter(Measurement.date >= '2016-08-23').\
     order_by(Measurement.date).all()
-   t = {date: prcp for (date, prcp) in tob}
+   t = {date: tobs for (date, tobs) in tob}
    return jsonify(t)
 
 
-@app.route("/api/v1.0/<start>")
-def start(start_date):
-    canonicalized = date.replace(" ", "").lower()
-    return session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
+@app.route("/api/v1.0/<start_date>")
+def start(start_date=None):
+    session = Session(engine)
+    trip_start= session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
         filter(Measurement.date >= start_date).all()
+    ts = list(np.ravel(trip_start))
+    return jsonify(ts)
 
 
 
-@app.route("/api/v1.0/<start>/<end>")
+@app.route("/api/v1.0/<start_date>/<end_date>")
 def trip_calc_temps(start_date, end_date):
-    return session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
+    session = Session(engine)
+    trip_start_end= session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs)).\
         filter(Measurement.date >= start_date).filter(Measurement.date <= end_date).all()
-        
-        
+    tse = list(np.ravel(trip_start_end))    
+    return jsonify(tse)
+    
 
 if __name__ == "__main__":
     app.run(debug=False)
